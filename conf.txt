@@ -1,8 +1,0 @@
-{
-	"--gh_token":"",
-	"--prev_release_commit":"579c92d1a8bf9cb623e4e2822ce22fc6b33025ce",
-	"--repo_name":"apache/cloudstack",
-	"--branch":"master",
-	"--prev_release_ver":"4.14.0.0",
-	"--new_release_ver":"4.15.0.0"
-}

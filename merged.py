@@ -73,7 +73,7 @@ Sample json file contents:
 import docopt
 import json
 from github import Github
-from lib.Table import TableRST, TableMD
+from prettytable import PrettyTable
 import itertools
 import os.path
 import time
@@ -158,174 +158,62 @@ if __name__ == '__main__':
                 prev_release_sha = tag.commit.sha
                 #print(prev_release_sha)
     commit = repo.get_commit(sha=prev_release_sha)
-    prev_release_commit_date=commit.commit.author.date
-    #break
+    prev_release_commit_date=str(commit.commit.author.date.date())    #break
 
     if not commit:
         print("No starting point found via version tag or commit SHA")
         exit
 
     print("Enumerating closed and merged PRs in master")
-    merged_features = []
-    merged_fixes = []
-    all_prs = []
-    ## TODO - use issue search (query) as more targeted
-    ## then get PR number from issue
-    ## issue.search(query is:PR since:prev_release_commit_date is:merged)
+    merged_features = {}
+    merged_fixes = {}
 
-    print("Retrieving Pull Requests from Github")
-    pulls = repo.get_pulls(state='closed', sort='updated', base='master', direction='asc')
-    for prs in pulls:
-        all_prs.append(prs)
-    print(all_prs)
-    print("Processing Pull Requests old to new - getting through old PRs make take some time")
-    for pr in all_prs:
+    print("Retrieving Pull Request Issues from Github")
+    search_string = f"repo:apache/cloudstack is:closed is:pr is:merged merged:>={prev_release_commit_date}"
+    issues = gh.search_issues(search_string)
+    fixes_table = PrettyTable(["PR Number", "Title", "Priority", "blank"]) 
+    features_table = PrettyTable(["PR Number", "Title", "Priority", "blank"])
+    dontknow_table = PrettyTable(["PR Number", "Title", "Priority", "blank"])
+
+    print("Processing Pull Request Issues")
+    for issue in issues:
+        pr = issue.repository.get_pull(issue.number)
         label = []
-        if pr.is_merged():
-            pr_merge_date = pr.merged_at
-            if pr_merge_date > prev_release_commit_date:
-                release_prs.append(pr)
-                pr_num = str(release_prs.number)
-                print("Found PR: " + pr_num + "merged at " + pr_merge_date)
-                labels = release_prs.labels
-                #label = labels
-                if [l.name for l in labels if l.name=='type:new-feature' or l.name=='type:enhancement']:
-                    merged_features['pr_num'] = {'title': 'pr.title.strip()', 'type': '"New feature"'}
-                    print("--- PR: " + pr_num + "--- feature label")
-                if [l.name for l in labels if l.name=='type:bug' or l.name=='BUG']:
-                    merged_fixes['pr_num'] = {'title': 'pr.title.strip()', 'type': '"Bug fix"'}
-                    print("--- PR: " + pr_num + "--- fix label")
-                else:
-                    print("Labels not matched")
+        pr_num = str(pr.number)
+        print("Found PR: " + pr_num)
+        labels = pr.labels
+        if [l.name for l in labels if l.name=='type:new-feature' or l.name=='type:enhancement']:
+            features_table.add_row([pr_num, pr.title.strip(), "-", "-"]) 
+            print("--- PR: " + pr_num + "--- feature label")
+        if [l.name for l in labels if l.name=='type:bug' or l.name=='BUG']:
+            fixes_table.add_row([pr_num, pr.title.strip(), "-", "-"]) 
+            print("--- PR: " + pr_num + "--- fix label")
+        else:
+            print("Labels not matched")
+            dontknow_table.add_row([pr_num, pr.title.strip(), "-", "-"]) 
 
+    print("writing tables")
+    fixes_table_txt = fixes_table.get_string()
+    with open('%s.txt' % merged_fixes_file ,"w") as file:
+        file.write(fixes_table_txt)
+        file.write('\n%s Issues listed\n\n' % str(len(merged_fixes)))
+    file.close()
+    print(("Commit data output to %s" % merged_fixes_file))
 
-    print("building fixes table")
-    table = None
-    try:
-        table = TableRST([
-            ('Github', gh_len),
-            ('Type', issue_type_len),
-            ('Priority', issue_priority_len),
-            ('Description', desc_len),
-        ])
-    except IOError as e:
-        print(('ERROR: %s' % str(e)))
-
-    md = TableMD([
-        'Github',
-        'Type',
-        'Priority',
-        'Description'
-    ])
-
-    if table:
-        try:
-            table.add_row([
-                '`#%s`_' % pr_num,
-                issue_type,
-                issue_priority,
-                desc
-            ])
-        except IOError as e:
-            print(('ERROR: %s' % str(e)))
-        md.add_row([
-            '[#%s](%s)' % (pr_num, gh_url),
-            issue_type,
-            issue_priority,
-            desc
-        ])
-
-    links = []
-    for pr_num in merged_fixes:
-        pr = merged_fixes[pr_num]
-        # setup github pr url
-        gh_url = ''
-        #'%s%s' % (gh_base_url, pr_num)
-        #links.append('.. _`#%s`: %s' % (pr_num, gh_url))
-        # initialize the data using github pr data
-        desc = merged_fixes[pr_num][title]
-        issue_type = ''
-        issue_priority = ''
-
-    if table:
-        file = open('%s.txt' % merged_fixes ,"w")
-        file.write('\n.. cssclass:: table-striped table-bordered table-hover\n\n\n')
-        file.write(table.draw())
-        file.write('\n%s Issues listed\n\n' % len(merged))
-
-# output the links we referenced earlier
-    for link in links:
-        file.write('%s \n' % link)
-        file.write('')
-
-
-
-    print("building features table")
-
-    table = None
-    try:
-        table = TableRST([
-            ('Github', gh_len),
-            ('Type', issue_type_len),
-            ('Priority', issue_priority_len),
-            ('Description', desc_len),
-        ])
-    except IOError as e:
-        print(('ERROR: %s' % str(e)))
-
-    md = TableMD([
-        'Github',
-        'Type',
-        'Priority',
-        'Description'
-    ])
-
-    if table:
-        try:
-            table.add_row([
-                '`#%s`_' % pr_num,
-                issue_type,
-                issue_priority,
-                desc
-            ])
-        except IOError as e:
-            print(('ERROR: %s' % str(e)))
-        md.add_row([
-            '[#%s](%s)' % (pr_num, gh_url),
-            issue_type,
-            issue_priority,
-            desc
-        ])
-
-    links = []
-    for pr_num in merged_features:
-        pr = merged_features[pr_num]
-        # setup github pr url
-        gh_url = ''
-        #'%s%s' % (gh_base_url, pr_num)
-        #links.append('.. _`#%s`: %s' % (pr_num, gh_url))
-        # initialize the data using github pr data
-        desc = merged_features[pr_num][title]
-        issue_type = ''
-        issue_priority = ''
-
-    if table:
-        file = open('%s.txt' % outputfile ,"w")
-        file.write('\n.. cssclass:: table-striped table-bordered table-hover\n\n\n')
-        file.write(table.draw())
-        file.write('\n%s Issues listed\n\n' % len(merged))
-
-# output the links we referenced earlier
-    #for link in links:
-    #    file.write('%s \n' % link)
-    #    file.write('')
-
-
-
-
-
-
-#print(md.draw()) # draw a markdown version of table as well
+    features_table_txt = features_table.get_string()
+    with open('%s.txt' % merged_features_file ,"w") as file:
+        file.write(features_table_txt)
+        file.write('\n%s Issues listed\n\n' % str(len(merged_features)))
     file.close()
     print(("Commit data output to %s" % merged_features_file))
-    
+
+#    file = open('%s.txt' % merged_features_file ,"w")
+#    file.write('print(dontknow_table)')
+#    file.write('\n%s Issues listed\n\n' % str(len(merged_features)))
+#    file.close()
+#    print(("Commit data output to %s" % merged_features_file))
+
+# output the links we referenced earlier
+#    for link in links:
+#        file.write('%s \n' % link)
+#        file.write('')

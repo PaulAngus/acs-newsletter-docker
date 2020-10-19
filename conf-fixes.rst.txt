@@ -1,0 +1,71 @@
++-----------+-----------------------------------------------------------------------------------------------------------------+----------+-------+
+| PR Number |                                                      Title                                                      | Priority | blank |
++-----------+-----------------------------------------------------------------------------------------------------------------+----------+-------+
+|    4404   |                         scalekubernetesclustercmd: Making id a required field [NPE Fix]                         |    -     |   -   |
+|    4373   |       Handles creation /var/run/cloud folder for creation of lock file while modifyvxlan.sh script is run       |    -     |   -   |
+|    4348   |                           vmware: use hotPlugMemoryIncrementSize only for valid value                           |    -     |   -   |
+|    4338   |                          server: check guest os preference of last host when start a vm                         |    -     |   -   |
+|    4321   |                       VMware: match hardware version for worker VM when taking a snapshot                       |    -     |   -   |
+|    4306   |                           Ubuntu 20.04: Fix issue while build package on ubuntu 20.04                           |    -     |   -   |
+|    4303   |                                    Ubuntu 20.04: Fix systemvm cannot start up                                   |    -     |   -   |
+|    4301   |                              Ubuntu 20.04: restart libvirtd instead of libvirt-bin                              |    -     |   -   |
+|    4297   |     Incorrect md5sums for systemVM templates results in failure to download templates to other image stores     |    -     |   -   |
+|    4294   |                                Create template from detached data-disks on VMWare                               |    -     |   -   |
+|    4291   |                              Manage influxDB Batches avoiding OutOfMemory Exception                             |    -     |   -   |
+|    4279   |                           Avoid Null pointer at DomainChecker and enhance AssignVMCmd                           |    -     |   -   |
+|    4274   |                               engine: honour bypass VLAN id/range for L2 networks                               |    -     |   -   |
+|    4272   |                                       Fixed rolling restart on VPC network                                      |    -     |   -   |
+|    4268   |                                  Prevent NullPointerException on GenericDaoBase                                 |    -     |   -   |
+|    4251   |                                          Handle with VM snapshot events                                         |    -     |   -   |
+|    4228   |                                  Dont add host back after agent service restart                                 |    -     |   -   |
+|    4225   |                                    vmware: volume utilisation is always zero                                    |    -     |   -   |
+|    4220   |                               Fix cpuallocated value in findHostsForMIgration api                               |    -     |   -   |
+|    4219   |                         iscsi session cleanup now configurable, filters iscsi partitions                        |    -     |   -   |
+|    4214   |                                              Bug fixes for primate                                              |    -     |   -   |
+|    4213   |                                          Search vm snapshots using tags                                         |    -     |   -   |
+|    4196   |                                          VMware: Guest OS Mappings fix                                          |    -     |   -   |
+|    4190   |                               Broadcast URI not set to vxlan, but vlan (Fix #3040)                              |    -     |   -   |
+|    4188   |                                         Fix snapshots garbage collection                                        |    -     |   -   |
+|    4176   |                          server: Purge all cookies on logout, set /client path on login                         |    -     |   -   |
+|    4174   |                                  Set prometheus.exporter.enable as not dynamic                                  |    -     |   -   |
+|    4165   |                                    Allow renaming cluster, host, and storage                                    |    -     |   -   |
+|    4156   |                     Fixed removal of hosts from certsmap when running certificate auto-renew                    |    -     |   -   |
+|    4154   |                                    server: fix for wrong affinity group count                                   |    -     |   -   |
+|    4148   |             server: Do not resize volume of running vm on KVM host if host is not Up or not Enabled             |    -     |   -   |
+|    4145   |               Fixing listVirtualMachinesMetrics to extend ListVMsCmd instead of ListVMsCmdByAdmin               |    -     |   -   |
+|    4142   |             Invalid character encountered in file ui/l10n/pt_BR.js at line 1134 for encoding UTF-8.             |    -     |   -   |
+|    4138   |                         Fixed incorrect error message on invalid template type download                         |    -     |   -   |
+|    4124   |                                         Missing python3 libvirt bindings                                        |    -     |   -   |
+|    4123   |                                      Improved kvmvmactivitycheck.sh output                                      |    -     |   -   |
+|    4122   | Maximum data volumes limit is picked from "default" version of hypervisor, instead of actual hypervisor version |    -     |   -   |
+|    4119   |                                         kvm: bump jna version to latest                                         |    -     |   -   |
+|    4116   |                                       cks: fix template, deployment issues                                      |    -     |   -   |
+|    4109   |                         add support for XCP-ng 7/8 to create it's heartbeat LVM properly                        |    -     |   -   |
+|    4100   |                                             RabbitMQ log enhancement                                            |    -     |   -   |
+|    4097   |                                          Adding novnc license exclusion                                         |    -     |   -   |
+|    4085   |                                     Fix duplicate user entries for vpn usage                                    |    -     |   -   |
+|    4079   |                                         Fixed HA migrated storage error                                         |    -     |   -   |
+|    4077   |                                 Disable searching by instance name for customers                                |    -     |   -   |
+|    4062   |                                [VMware] Cannot migrate VM on PVLAN shared network                               |    -     |   -   |
+|    4040   |                                    [KVM] Enable PVLAN support on L2 networks                                    |    -     |   -   |
+|    4020   |                                server: move UpdateDefaultNic to vm work job queue                               |    -     |   -   |
+|    4019   |                                   server: Move restoreVM to vm work job queue                                   |    -     |   -   |
+|    4016   |                                      Fixed private gateway can't be deleted                                     |    -     |   -   |
+|    4007   |                              Restarting all networks that needs a restart in a VPC                              |    -     |   -   |
+|    4004   |           Fixed null pointer and deployment issue on Xenserver with L2 Guest network with configDrive           |    -     |   -   |
+|    4001   |                 server: Dedicated hosts should be 'Not Suitable' while find host for m migration                |    -     |   -   |
+|    4000   |                                  vm: Reset deviceId to fix missing nic with vm                                  |    -     |   -   |
+|    3998   |                      NPE when VM is planned to migrate to other host during dynamic scaling                     |    -     |   -   |
+|    3996   |                                UI: Hide cpuspeed for custom constrained offering                                |    -     |   -   |
+|    3991   |               Multiple dynamic VM Scaling APIs can create duplicate usage events for the same time              |    -     |   -   |
+|    3982   |                       Updated 3 error messages to replace the word 'matches' with 'match'                       |    -     |   -   |
+|    3980   |                                    Fix String.format unused/misused arguments                                   |    -     |   -   |
+|    3965   |                               server: Honor vm.destroy.forcestop when expunge a vm                              |    -     |   -   |
+|    3955   |                               docker: upgrade to ubuntu 18.04 and fix some issues                               |    -     |   -   |
+|    3952   |                       vrouter: remove a POSTROUTING rule for port forwarding in VPC router                      |    -     |   -   |
+|    3949   |                   Fix: catch CloudRuntimeException in LibvirtGetVolumeStatsCommandWrapper.java                  |    -     |   -   |
+|    3902   |                     vrouter: Save PlaceHolder nic for VR if network does not have source nat                    |    -     |   -   |
+|    3794   |                    create Volume Access Groups per cluster instead of CloudStack-RandomUUID()                   |    -     |   -   |
++-----------+-----------------------------------------------------------------------------------------------------------------+----------+-------+
+0 Issues listed
+
