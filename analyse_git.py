@@ -67,13 +67,13 @@ Sample json file contents:
 	"--new_release_ver":"4.11.2.0"
 }
 
-
+requrires: python3.8 + docopt pygithub prettytable
 """
 
 import docopt
 import json
 from github import Github
-from lib.Table import TableRST, TableMD
+from prettytable import PrettyTable
 import itertools
 import os.path
 import time
@@ -118,9 +118,11 @@ def merge(primary, secondary):
 
 # run the code...
 if __name__ == '__main__':
+    print('\nStating Analysis...\n\n')
     args = load_config()
 #     repository details
     gh_token = args['--gh_token']
+    gh = Github(gh_token)
     repo_name = args['--repo']
     prev_release_ver = args['--prev_release_ver']
     prev_release_commit = args['--prev_release_commit']
@@ -135,25 +137,117 @@ if __name__ == '__main__':
     issue_type_len = int(args['--col_type_width'])
     issue_priority_len = int(args['--col_priority_width'])
     desc_len = int(args['--col_desc_width'])
-    
-    outputfile = str(os.path.splitext(args['--config'])[0])+".rst"
 
-    gh = Github(gh_token)
+    prs_file = "prs.rst"
+    wip_features_table = PrettyTable(["PR Number", "Title", "Priority", "blank"])
+    fixes_table = PrettyTable(["PR Number", "Title", "Priority", "blank"]) 
+    features_table = PrettyTable(["PR Number", "Title", "Priority", "blank"])
+    dontknow_table = PrettyTable(["PR Number", "Title", "Priority", "blank"])
+    wip_features_table.align["Title"] = "l"
+    features_table.align["Title"] = "l"
+    fixes_table.align["Title"] = "l"
+    dontknow_table.align["Title"] = "l"
+    wip_features_table._max_width = {"Title":60}
+    features_table._max_width = {"Title":60}
+    fixes_table._max_width = {"Title":60}
+    dontknow_table._max_width = {"Title":60}
+    
     repo = gh.get_repo(repo_name)
 
-    print("Retrieving PRs from master")        
-    pulls = repo.get_pulls(state='open', sort='created', base='master')
+    ## TODO - get commit -> commit date from tag on master.
+    ## Searching seems a waste
 
-    wip = []
-    merged_feature = []
-    merged_fix = []
-    reverted = []
-    for pr in pulls:
+    #repo_tags = repo.get_tags()
+
+    if prev_release_commit:
+        print("Previous Release Commit SHA found, skipping pre_release_ver search\n")
+        prev_release_sha = prev_release_commit
+    else:
+        print("Finding commit SHA for previous version " + prev_release_ver)
+        for tag in repo_tags:
+            if tag.name == prev_release_ver:
+                prev_release_sha = tag.commit.sha
+                #print(prev_release_sha)
+    commit = repo.get_commit(sha=prev_release_sha)
+    prev_release_commit_date=str(commit.commit.author.date.date())    #break
+
+    if not commit:
+        print("No starting point found via version tag or commit SHA")
+        exit
+
+    print("Enumerating Open WIP PRs in master")
+    print("Retrieving Pull Request Issues from Github")
+    search_string = f"repo:apache/cloudstack is:open is:pr label:wip"
+    issues = gh.search_issues(search_string)
+    wip_features = 0
+
+    print("\nProcessing Open Pull Request Issues")
+    for issue in issues:
+        pr = issue.repository.get_pull(issue.number)
+        #label = []
+        pr_num = str(pr.number)
+        #print("Found PR: " + pr_num)
+        #labels = pr.labels
+        #if [l.name for l in labels if l.name=='wip' or l.name=='WIP']:
+        wip_features_table.add_row([pr_num, pr.title.strip(), "-", "-"]) 
+        print("--- PR: " + pr_num + "--- WIP feature label")
+        wip_features += 1
+
+    print("\nEnumerating closed and merged PRs in master")
+
+    print("Retrieving Pull Request Issues from Github")
+    search_string = f"repo:apache/cloudstack is:closed is:pr is:merged merged:>={prev_release_commit_date}"
+    issues = gh.search_issues(search_string)
+    features = 0
+    fixes = 0
+    uncategorised = 0
+
+    print("\nProcessing Pull Request Issues")
+    for issue in issues:
+        pr = issue.repository.get_pull(issue.number)
+        label = []
+        pr_num = str(pr.number)
+        print("Found PR: " + pr_num)
         labels = pr.labels
-        label = [l.name for l in labels if l.name=='bugfix']
-    #    print(label)
-        if label:
-            pr_num = str(pr.number)
-            print(pr_num + " - "  + pr.title)
+        if [l.name for l in labels if l.name=='type:new-feature' or l.name=='type:enhancement']:
+            features_table.add_row([pr_num, pr.title.strip(), "-", "-"]) 
+            print("--- PR: " + pr_num + "--- feature label")
+            features += 1
+        if [l.name for l in labels if l.name=='type:bug' or l.name=='BUG']:
+            fixes_table.add_row([pr_num, pr.title.strip(), "-", "-"]) 
+            print("--- PR: " + pr_num + "--- fix label")
+            fixes += 1
+        else:
+            print("Labels not matched")
+            dontknow_table.add_row([pr_num, pr.title.strip(), "-", "-"])
+            uncategorised += 1
 
+    print("\nwriting tables")
+    wip_features_table_txt = wip_features_table.get_string()
+    fixes_table_txt = fixes_table.get_string()
+    features_table_txt = features_table.get_string()
+    dontknow_table_txt = dontknow_table.get_string()
+    with open(prs_file ,"w") as file:
+        file.write('Work in Progress Features & Enhancements\n\n')
+        file.write(wip_features_table_txt)
+        file.write('\n%s Features listed\n\n' % str(wip_features))
+        file.write('New Features & Enhancements\n\n')
+        file.write(features_table_txt)
+        file.write('\n%s Features listed\n\nBug Fixes\n\n' % str(features))
+        file.write(fixes_table_txt)
+        file.write('\n%s Bugs listed\n\n' % str(fixes))
+        file.write(dontknow_table_txt)
+        file.write('\n%s uncategorised issues listed\n\n' % str(uncategorised))
+    file.close()
+    print(("\nCommit data output to %s\n\n" % prs_file))
 
+#    file = open('%s.txt' % merged_features_file ,"w")
+#    file.write('print(dontknow_table)')
+#    file.write('\n%s Issues listed\n\n' % str(len(merged_features)))
+#    file.close()
+#    print(("Commit data output to %s" % merged_features_file))
+
+# output the links we referenced earlier
+#    for link in links:
+#        file.write('%s \n' % link)
+#        file.write('')
