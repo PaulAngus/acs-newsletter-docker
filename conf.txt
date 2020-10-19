@@ -1,6 +1,6 @@
 {
-	"--gh_token":"c0ac2a32a072e16952cd609a3c885351a9b71cc6 ",
-	"--prev_release_commit":"",
+	"--gh_token":"",
+	"--prev_release_commit":"579c92d1a8bf9cb623e4e2822ce22fc6b33025ce",
 	"--repo_name":"apache/cloudstack",
 	"--branch":"master",
 	"--prev_release_ver":"4.14.0.0",
