@@ -13,12 +13,15 @@ class commitlist(object):
 
         def save_current_commit():
             title = current_commit['message'][0]
-            message = '\n'.join(e for e in current_commit['message'][1:] if e.isalnum())
+            print(title)
+            message = current_commit['message'][1:]
+            
             if message and message[0] == '':
                 del message[0]
             current_commit['title'] = title
-             #current_commit['message'] = '\n'.join(message)''.join(e for e in message if e.isalnum())
-            current_commit['message'] =  '\n'.join(message)
+            current_commit['message'] = '\n'.join(message)
+            #''.join(e for e in message if e.isalnum())
+            #current_commit['message'] = ''.join(message)
             commits.append(current_commit)
 
         for line in lines:

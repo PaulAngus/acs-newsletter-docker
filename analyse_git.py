@@ -77,10 +77,12 @@ from prettytable import PrettyTable
 import itertools
 import os.path
 import time
-
-import pprint
 import re
 import sys
+import subprocess
+from datetime import datetime
+from lib.commits_from_gitlog import commitlist
+import string
 
 def load_config():
     """
@@ -106,6 +108,29 @@ def load_config():
     if not valid_input:
         sys.exit(__doc__)
     return args
+
+def get_revert_commits():
+    revertedcommits = []
+    repourl='https://github.com/' + repo_name
+    git.Repo.clone_from(repourl, '/tmp/repo',  branch=branch, depth=1, config='http.sslVerify=false',)
+    leading_4_spaces = re.compile('^    ')
+    previous_release_date = prev_release_commit_date.date()
+    #previous_commit_date = datetime.strptime(previous_commit_datestr, '%m-%d-%Y').date()
+    commits = commitlist.get_commits()
+    for commit in commits:
+        thiscommit = commit['title']
+        reverted = re.match('^Revert "', thiscommit)
+        if reverted:
+            commitdatestr = commit['date']
+            #print(commitdatestr)
+            date_time_str = ' '.join(commitdatestr.split(" ")[:-1])
+            commitdate = datetime.strptime(date_time_str, '%c').date()
+            if commitdate > previous_release_date:
+                revertedcommit = re.search('.*This reverts commit ([A-Za-z0-9]*).*', commit['message'])
+                #print(revertedcommit.group(1))
+                revertedcommits.append(revertedcommit.group(1))
+    return revertedcommits
+
 
 def merge(primary, secondary):
     """
@@ -251,3 +276,6 @@ if __name__ == '__main__':
 #    for link in links:
 #        file.write('%s \n' % link)
 #        file.write('')
+
+    #repoClone = pygit2.clone_repository(repo.git_url, '/tmp/cloudstack', bare='True', depth=1)
+
