@@ -26,3 +26,4 @@ Brain dump of commands:
 
 docker build --tag acsn:0.1 .
 
+docker run --env-file env.vars acsn  #untried
