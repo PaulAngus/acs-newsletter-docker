@@ -9,6 +9,8 @@ Self contained environment to:
 
 The PRs (open and closed) will be categorised via the labels attached to them
 
+NOTE: analysis_git.py is designed to run outside of the surrounding app, so var initialisation will look a little clunky 
+
 Label categorisation:
 ---------------------
 (TODO - documentation)

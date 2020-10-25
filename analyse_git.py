@@ -25,34 +25,26 @@ Usage:
                   [-b <arg> | --branch=<arg>]  
                   [--repo=<arg>] 
                   [--gh_base_url=<arg>] 
-                  [--jira_base_url=<arg>]
-                  [--jira_server_url=<arg>]
-                  [--col_branch_width=<arg>] 
-                  [--col_github_width=<arg>]
-                  [--col_jira_width=<arg>]
-                  [--col_type_width=<arg>] 
-                  [--col_priority_width=<arg>]
-                  [--col_desc_width=<arg>]
+                  [--col_title_width=<arg>] 
+
   fixed_issues.py (-h | --help)
 Options:
   -h --help                         Show this screen.
   --config=<config.json>            Path to a JSON config file with an object of config options.
-  -t <arg> --gh_token=<arg>         Required: Your Github token from https://github.com/settings/tokens 
+  --gh_token=<arg>         Required: Your Github token from https://github.com/settings/tokens 
                                       with `repo/public_repo` permissions.
-  -c <arg> --prev_rel_commit=<arg>  Required: The commit hash of the previous release.
-  -b <arg> --branches=<arg>         Required: Comma separated list of branches to report on (eg: 4.7,4.8,4.9).
+  --prev_rel_commit=<arg>  Required: The commit hash of the previous release.
+  --branches=<arg>         Required: Comma separated list of branches to report on (eg: 4.7,4.8,4.9).
+  --new_release_ver=<arg            not used in this iteration yet
+
                                       The last one is assumed to be `master`, so `4.7,4.8,4.9` would
                                       actually be represented by 4.7, 4.8 and master.
   --repo=<arg>                      The name of the repo to use [default: apache/cloudstack].
   --gh_base_url=<arg>               The base Github URL for pull requests 
                                       [default: https://github.com/apache/cloudstack/pull/].
-  --col_branch_width=<arg>          The width of the Branches column [default: 25].
-  --col_github_width=<arg>          The width of the Github PR column [default: 10].
-  --col_jira_width=<arg>            The width of the Jira Issue column [default: 20].
-  --col_type_width=<arg>            The width of the Issue Type column [default: 15].
-  --col_priority_width=<arg>        The width of the Issue Priority column [default: 10].
-  --col_desc_width=<arg>            The width of the Description column [default: 60].
-  
+  --col_title_width=<arg>          The width of the title column [default: 60].
+  --docker_created_config=<arg>     used to know whether to remove conf file if in container (for some safety)    
+
 Sample json file contents:
 
 {
@@ -68,6 +60,7 @@ requires: python3.8 + docopt pygithub prettytable gitpython
 
 """
 
+from typing import DefaultDict
 import docopt
 import json
 from github import Github
@@ -97,7 +90,7 @@ def load_config():
             print(("ERROR: %s" % str(e)))
         if json_args:
             args = merge(args, json_args)
-#     since we are here, check that the required fields exist
+    #     since we are here, check that the required fields exist
     valid_input = True
     for arg in ['--gh_token', '--prev_release_ver', '--branch', '--repo', '--new_release_ver']:
         if not args[arg] or (isinstance(args[arg], list) and not args[arg][0]):
@@ -106,8 +99,6 @@ def load_config():
     if not valid_input:
         sys.exit(__doc__)
     return args
-import subprocess
-import re
 
 leading_4_spaces = re.compile('^    ')
 
@@ -188,7 +179,7 @@ if __name__ == '__main__':
     print('\nInitialising...\n\n')
 
     args = load_config()
-#     repository details
+#   repository details
     gh_token = args['--gh_token']
     gh = Github(gh_token)
     repo_name = args['--repo']
@@ -196,15 +187,24 @@ if __name__ == '__main__':
     prev_release_commit = args['--prev_release_commit']
     new_release_ver = args['--new_release_ver']
     branch = args['--branch']
-
+    
     gh_base_url = args['--gh_base_url']
 
-#   table column widths
-    branch_len = int(args['--col_branch_width'])
-    gh_len = int(args['--col_github_width'])
-    issue_type_len = int(args['--col_type_width'])
-    issue_priority_len = int(args['--col_priority_width'])
-    desc_len = int(args['--col_desc_width'])
+    # default column width to 60
+    if 'col_title_width' in locals():
+        col_title_width = int(args['--col_title_width'])
+    else:
+        col_title_width = 60
+    
+    # Delete config file if was dynaicall 
+    if 'docker_created_config' in locals():
+        docker_created_config = bool(args('--docker_created_config'))
+    else:
+        docker_created_config = bool(False)
+
+    if docker_created_config:
+        if args['--config'] and os.path.isfile(args['--config']):
+            os.remove("demofile.txt")
 
     prs_file = "prs.rst"
     cloned_repo_dir = '/tmp/repo'
@@ -216,10 +216,10 @@ if __name__ == '__main__':
     features_table.align["Title"] = "l"
     fixes_table.align["Title"] = "l"
     dontknow_table.align["Title"] = "l"
-    wip_features_table._max_width = {"Title":60}
-    features_table._max_width = {"Title":60}
-    fixes_table._max_width = {"Title":60}
-    dontknow_table._max_width = {"Title":60}
+    wip_features_table._max_width = {"Title":col_title_width}
+    features_table._max_width = {"Title":col_title_width}
+    fixes_table._max_width = {"Title":col_title_width}
+    dontknow_table._max_width = {"Title":col_title_width}
     
     repo = gh.get_repo(repo_name)
 
