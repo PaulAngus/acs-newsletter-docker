@@ -1,3 +1,7 @@
+
+Git Summary
+===========
+
 Premise:
 
 Self contained environment to:
@@ -11,7 +15,15 @@ Label categorisation:
 
 (TODO)
 
+Requires
+========
+
+python3.8 + docopt pygithub prettytable gitpython
+
+
 Task list
+=========
+
 
 - create python script to generate tables (TICK)
 - create lightweight docker build file with python dependancies installed (TICK)
