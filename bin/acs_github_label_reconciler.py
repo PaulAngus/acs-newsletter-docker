@@ -333,9 +333,12 @@ if __name__ == '__main__':
             old_prs += 1
             labels_old_table.add_row([pr_num, pr.title.strip(), "Very old PR", "Add label age:2years_plus"])
             if update_labels:
-                pr.remove_from_labels("age:1year_plus")
                 pr.add_to_labels("age:2years_plus")
-
+                try:
+                    pr.remove_from_labels("age:1year_plus")
+                except:
+                    print("")
+    
         elif creation_date < check_date_old:
             print("**** More than 1 year old - adding label")
             old_prs += 1
