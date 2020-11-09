@@ -3,3 +3,6 @@ cloudstack.git/
 env.vars
 prs.rst
 export.vars
+bin/labels
+bin/lib/__pycache__/__init__.cpython-38.pyc
+bin/lib/__pycache__/processors.cpython-38.pyc
