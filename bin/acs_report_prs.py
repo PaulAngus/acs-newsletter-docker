@@ -66,15 +66,12 @@ import json
 from github import Github
 from prettytable import PrettyTable
 import os.path
-from os import path
-import re
 import sys
-import subprocess
 from  datetime import datetime, timedelta
-import subprocess
-import shutil
 import pygit2
 from lib import processors
+import operator
+
 
 
 def load_config():
@@ -241,7 +238,7 @@ if __name__ == '__main__':
             label = []
             pr_num = str(pr.number)
             labels = pr.labels
-            if [l.name for l in labels if l.name=='type:new-feature']:
+            if [l.name for l in labels if l.name=='type:new-feature' or l.name=='type:new_feature']:
                 features_table.add_row([pr_num, pr.title.strip(), "New Feature", "-"]) 
                 print("-- Found PR: " + pr_num + " with feature label")
                 features += 1
@@ -251,7 +248,7 @@ if __name__ == '__main__':
                 print("-- Found PR: " + pr_num + " with enhancement label")
                 features += 1
                 label_matches += 1
-            if [l.name for l in labels if l.name == 'type:bug' or l.name == 'BUG' or l.name == 'type:cleanup']:
+            if [l.name for l in labels if l.name == 'type:bug' or l.name == 'type:cleanup']:
                 fixes_table.add_row([pr_num, pr.title.strip(), "Bug Fix", "-"]) 
                 print("-- Found PR: " + pr_num + " with fix label")
                 fixes += 1
@@ -264,9 +261,9 @@ if __name__ == '__main__':
     print("\nwriting tables")
     wip_features_table_txt = wip_features_table.get_string()
     fixes_table_txt = fixes_table.get_string()
-    features_table_txt = features_table.get_string()
+    features_table_txt = features_table.get_string(sort_key=operator.itemgetter(3, 4), sortby="Type")
     dontknow_table_txt = dontknow_table.get_string()
-    old_pr_txt = old_pr_table.get_string()
+    old_pr_txt = old_pr_table.get_string(sortby=("Note"))
     with open(prs_file ,"w") as file:
         file.write('\nWork in Progress PRs\n\n')
         file.write(wip_features_table_txt)
