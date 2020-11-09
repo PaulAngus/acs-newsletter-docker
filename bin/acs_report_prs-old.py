@@ -76,8 +76,6 @@ def load_config():
     """
     Parse the command line arguments and load in the optional config file values
     """
-    global gh_token
-
     args = docopt.docopt(__doc__)
     if args['--config'] and os.path.isfile(args['--config']):
         json_args = {}
@@ -91,13 +89,10 @@ def load_config():
             args = merge(args, json_args)
     #     since we are here, check that the required fields exist
     valid_input = True
-    #if not args['--gh_token'] or (isinstance(args['--gh_token'], list)):
-    try:
-        gh_token = args['--gh_token']
-    except:
-        print("ERROR: gh_token is required")
-        valid_input = False
-
+    for arg in ['--gh_token', '--prev_release_ver', '--branch', '--repo', '--new_release_ver']:
+        if not args[arg] or (isinstance(args[arg], list) and not args[arg][0]):
+            print(("ERROR: %s is required" % arg))
+            valid_input = False
     if not valid_input:
         sys.exit(__doc__)
     return args
@@ -117,74 +112,38 @@ if __name__ == '__main__':
     print('\nInitialising...\n\n')
 
     args = load_config()
+#   repository details
+    gh_token = args['--gh_token']
+    gh = Github(gh_token)
+    repo_name = args['--repo']
+    prev_release_ver = args['--prev_release_ver']
+    prev_release_commit_sha = args['--prev_release_commit_sha']
+    new_release_ver = args['--new_release_ver']
+    branch = args['--branch']
+    tmp_dir = args['--tmp_dir']
+    gh_base_url = args['--gh_base_url']
 
-# Must have either Commit SHA of last version or Verion number to proceed
-    try:
-        prev_release_ver = args['--prev_release_ver']
-    except:
-        prev_release_ver = "NULL"
-
-    print(args['--prev_release_commit_sha'])
-    try:
-        print(args['--prev_release_commit_sha'])
-        prev_release_commit_sha = args['--prev_release_commit_sha']
-    except:
-        prev_release_commit_sha = "NULL"
-
-    if prev_release_commit_sha == "NULL" and prev_release_ver == "NULL":
-        print("SHA or Version Required")
-        sys.exit()
-
-#  set defaults for optional parameters
-
-    try:
-        repo_name = args['--repo']
-    except:
-        repo_name = "apache/cloudstack"
-
-    try:
-        new_release_ver = args['--new_release_ver']
-    except:
-        new_release_ver = 1
-
-    try:
-        branch = args['--branch']
-    except:
-        branch = 'master'
-        
-    try:    
-        tmp_dir = args['--tmp_dir']
-    except:
-        tmp_dir = "/tmp"
-
-    try:
-        gh_base_url = args['--gh_base_url']
-    except:
-        gh_base_url = "https://github.com"
-
-    try:
+    # default required_tables to all tables
+    if 'required_tables' in locals():
         required_tables = str(args['--required_tables'])
-    except:
+    else:
         required_tables = ['wip_features', 'merged_fixes', 'merged_features', 'dontknow', 'old_prs'] 
 
-    try:
+    # default column width to 60
+    if 'col_title_width' in locals():
         col_title_width = int(args['--col_title_width'])
-    except:
+    else:
         col_title_width = 60
     
     # Delete config file if was dynaicall 
-    try:
-        docker_created_config = bool(args['--docker_created_config'])
-    except:
+    if 'docker_created_config' in locals():
+        docker_created_config = bool(args('--docker_created_config'))
+    else:
         docker_created_config = bool(False)
 
     if docker_created_config:
         if args['--config'] and os.path.isfile(args['--config']):
             os.remove("demofile.txt")
-
-    
-    print(repo_name)
-    gh = Github(gh_token)
 
     prs_file = "prs.rst"
     tmp_repo_dir = tmp_dir + "/repo"
@@ -211,8 +170,7 @@ if __name__ == '__main__':
 
     #repo_tags = repo.get_tags()
 
-
-    if prev_release_commit_sha != "NULL":
+    if prev_release_commit_sha:
         print("Previous Release Commit SHA found in conf file, skipping pre release SHA search.\n")
         prev_release_sha = prev_release_commit_sha
     else:
@@ -220,12 +178,13 @@ if __name__ == '__main__':
         for tag in repo_tags:
             if tag.name == prev_release_ver:
                 prev_release_sha = tag.commit.sha
-
+                #print(prev_release_sha)
     commit = repo.get_commit(sha=prev_release_sha)
-    prev_release_commit_date=str(commit.commit.author.date.date())
+    prev_release_commit_date=str(commit.commit.author.date.date())    #break
     if not commit:
         print("No starting point found via version tag or commit SHA")
         exit
+
 
     print("Enumerating Open WIP PRs in master\n")
     print("- Retrieving Pull Request Issues from Github")
