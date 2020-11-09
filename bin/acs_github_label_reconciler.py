@@ -59,8 +59,7 @@ Sample json file contents:
 requires: python3.8 + docopt pygithub prettytable gitpython
 
 """
-
-from re import match
+from typing import DefaultDict
 import docopt
 import json
 from github import Github

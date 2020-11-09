@@ -19,15 +19,8 @@
 # under the License.
 
 
-
-from typing import DefaultDict
-import json
-from github import Github
-from github.Repository import Repository
-from prettytable import PrettyTable
 import os
 import re
-import sys
 import subprocess
 from datetime import datetime
 import subprocess
