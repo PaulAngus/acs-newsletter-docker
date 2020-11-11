@@ -1,2 +1,5 @@
 conf.txt
 cloudstack.git/
+export.vars
+env.vars
+prs.rst
