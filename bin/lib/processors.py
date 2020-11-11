@@ -26,8 +26,6 @@ from datetime import datetime
 import subprocess
 import shutil
 import pygit2
-from re import match
-
 
 def get_commits(repo, branch, tmp_repo_dir):
 
@@ -36,7 +34,7 @@ def get_commits(repo, branch, tmp_repo_dir):
 
     leading_4_spaces = re.compile('^    ')
 
-    print("- Cloning repo, sorry, this could take a while")
+    print("- Cloning repo to avoid too many Github API calls, sorry, this could take a while")
     dir_now = os.getcwd()
     if os.path.isdir(tmp_repo_dir):
         shutil.rmtree(tmp_repo_dir)
@@ -94,4 +92,3 @@ def get_reverted_commits(repo, branch, prev_release_commit_date, tmp_repo_dir):
                 revertedcommit = re.search('.*This reverts commit ([A-Za-z0-9]*).*', commit['message'])
                 revertedcommits.append(revertedcommit.group(1))
     return revertedcommits
-

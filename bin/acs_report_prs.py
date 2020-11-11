@@ -49,14 +49,17 @@ Sample json file contents:
 
 {
 	"--gh_token":"******************",
-	"--prev_release_commit":"",
+	"--prev_release_commit_sha":"6f96b3b2b391a9b7d085f76bcafa3989d9832b4e",
 	"--repo_name":"apache/cloudstack",
-	"--branch":"4.11",
-	"--prev_release_ver":"4.11.1.0",
-	"--new_release_ver":"4.11.2.0"
+	"--prev_release_ver":"4.14.0.0",
+	"--branch":"master",
+	"--prev_release_ver":"4.14.0.0",
+	"--new_release_ver":"4.15.0.0",
+	"--tmp_dir":"/tmp",
+	"--required_tables":"['wip_features', 'merged_fixes', 'merged_features', 'dontknow', 'old_prs']"
 }
 
-requires: python3.8 + docopt pygithub prettytable gitpython
+requires: python3.8 + docopt pygithub prettytable pygit2
 
 """
 
@@ -69,7 +72,7 @@ import sys
 from  datetime import datetime, timedelta
 from lib import processors
 import operator
-
+import re
 
 
 def load_config():
@@ -123,16 +126,13 @@ if __name__ == '__main__':
         prev_release_ver = args['--prev_release_ver']
     except:
         prev_release_ver = "NULL"
-
-    print(args['--prev_release_commit_sha'])
     try:
-        print(args['--prev_release_commit_sha'])
         prev_release_commit_sha = args['--prev_release_commit_sha']
     except:
         prev_release_commit_sha = "NULL"
 
     if prev_release_commit_sha == "NULL" and prev_release_ver == "NULL":
-        print("SHA or Version Required")
+        print("Starting commit SHA or version is required to continue")
         sys.exit()
 
 #  set defaults for optional parameters
@@ -156,6 +156,11 @@ if __name__ == '__main__':
         tmp_dir = args['--tmp_dir']
     except:
         tmp_dir = "/tmp"
+    
+    try:    
+        output_file_name = args['--output_file_name']
+    except:
+        output_file_name = "prs.rst"
 
     try:
         gh_base_url = args['--gh_base_url']
@@ -182,17 +187,13 @@ if __name__ == '__main__':
         if args['--config'] and os.path.isfile(args['--config']):
             os.remove("demofile.txt")
 
-    
-    print(repo_name)
     gh = Github(gh_token)
-
-    prs_file = "prs.rst"
     tmp_repo_dir = tmp_dir + "/repo"
-    wip_features_table = PrettyTable(["PR Number", "Title", "Type", "Note"])
-    fixes_table = PrettyTable(["PR Number", "Title", "Type", "Note"]) 
-    features_table = PrettyTable(["PR Number", "Title", "Type", "Note"])
-    dontknow_table = PrettyTable(["PR Number", "Title", "Type", "Note"])
-    old_pr_table = PrettyTable(["PR Number", "Title", "Type", "Note"])
+    wip_features_table = PrettyTable(["PR Number", "Title", "Type", "Note", "_index"])
+    fixes_table = PrettyTable(["PR Number", "Title", "Type", "Severity", "_index"]) 
+    features_table = PrettyTable(["PR Number", "Title", "Type", "Note", "_index"])
+    dontknow_table = PrettyTable(["PR Number", "Title", "Type", "Note", "_index"])
+    old_pr_table = PrettyTable(["PR Number", "Title", "Type", "Note", "_index"])
     old_pr_table.align["Title"] = "l"
     wip_features_table.align["Title"] = "l"
     features_table.align["Title"] = "l"
@@ -240,24 +241,25 @@ if __name__ == '__main__':
         label = []
         pr_num = str(pr.number)
         labels = pr.labels
-        if [l.name for l in labels if l.name=='wip']:
-            wip_features_table.add_row([pr_num, pr.title.strip(), "-", "-"]) 
-            print("-- Found open PR : " + pr_num + " with WIP label")
-            wip_features += 1
+        if "wip_features" in required_tables:
+            if [l.name for l in labels if l.name=='wip']:
+                wip_features_table.add_row([pr_num, pr.title.strip(), "-", "-", 1]) 
+                print("-- Found open PR : " + pr_num + " with WIP label")
+                wip_features += 1
+        if "old_prs" in required_tables:
+            creation_date = pr.created_at
+            check_date_old = datetime.now() - timedelta(days=365)
+            check_date_very_old = datetime.now() - timedelta(days=2*365)
+            if creation_date < check_date_very_old:
+                print("**** More than 2 years old")
+                old_prs += 1
+                old_pr_table.add_row([pr_num, pr.title.strip(), "Very old PR", "Add label age:2years_plus", 2])
 
-        creation_date = pr.created_at
-        check_date_old = datetime.now() - timedelta(days=365)
-        check_date_very_old = datetime.now() - timedelta(days=2*365)
-        if creation_date < check_date_very_old:
-            print("**** More than 2 years old")
-            old_prs += 1
-            old_pr_table.add_row([pr_num, pr.title.strip(), "Very old PR", "Add label age:2years_plus"])
+            elif creation_date < check_date_old:
+                print("**** More than 1 year old")
+                old_prs += 1
+                old_pr_table.add_row([pr_num, pr.title.strip(), "Old PR", "Add label age:1year_plus", 1])
 
-        elif creation_date < check_date_old:
-            print("**** More than 1 year old")
-            old_prs += 1
-            old_pr_table.add_row([pr_num, pr.title.strip(), "Old PR", "Add label age:1year_plus"])
-            
 
     print("\nEnumerating closed and merged PRs in master\n")
 
@@ -281,49 +283,81 @@ if __name__ == '__main__':
             print("- Skipping PR %s, its been reverted", pr.merge_commit_sha)
         else:
             label = []
+            severity_label = []
             pr_num = str(pr.number)
             labels = pr.labels
-            if [l.name for l in labels if l.name=='type:new-feature' or l.name=='type:new_feature']:
-                features_table.add_row([pr_num, pr.title.strip(), "New Feature", "-"]) 
-                print("-- Found PR: " + pr_num + " with feature label")
-                features += 1
-                label_matches += 1
-            if [l.name for l in labels if l.name=='type:enhancement']:
-                features_table.add_row([pr_num, pr.title.strip(), "Enhancement", "-"]) 
-                print("-- Found PR: " + pr_num + " with enhancement label")
-                features += 1
-                label_matches += 1
-            if [l.name for l in labels if l.name == 'type:bug' or l.name == 'type:cleanup']:
-                fixes_table.add_row([pr_num, pr.title.strip(), "Bug Fix", "-"]) 
-                print("-- Found PR: " + pr_num + " with fix label")
-                fixes += 1
-                label_matches += 1
-            if label_matches == 0:
-                print("-- Found PR: " + pr_num + " with no matching label")
-                dontknow_table.add_row([pr_num, pr.title.strip(), "-", "-"])
-                uncategorised += 1
+            severity_label_match = 0
+            severity_label_test = ''
+
+            for l in labels:
+                severity_label_test = l.name.find("Severity")
+                if int(severity_label_test) != -1:
+                    severity_label = l.name[9:]
+                    severity_label_match += 1 
+            if severity_label_match != 1:
+                severity_label = "unmatched"
+            
+            index_dict = {"BLOCKER":"01","Critical":"02", "Major":"03", "Minor":"04", "Trivial":"05", "none":"98", "unmatched":"99"}
+
+            severity_index = index_dict[severity_label]
+
+            if "merged_features" in required_tables:
+                if [l.name for l in labels if l.name=='type:new-feature' or l.name=='type:new_feature']:
+                    features_table.add_row([pr_num, pr.title.strip(), "New Feature", "-", 1 ]) 
+                    print("-- Found PR: " + pr_num + " with feature label")
+                    features += 1
+                    label_matches += 1
+            if "merged_features" in required_tables:
+                if [l.name for l in labels if l.name=='type:enhancement']:
+                    features_table.add_row([pr_num, pr.title.strip(), "Enhancement", "-", 2]) 
+                    print("-- Found PR: " + pr_num + " with enhancement label")
+                    features += 1
+                    label_matches += 1
+            if "merged_fixes" in required_tables:
+                if [l.name for l in labels if l.name == 'type:bug' or l.name == 'type:cleanup']:
+                    fixes_table.add_row([pr_num, pr.title.strip(), "Bug Fix", severity_label, severity_index]) 
+                    print("-- Found PR: " + pr_num + " with fix label, Severity of " + str(severity_label))
+                    fixes += 1
+                    label_matches += 1
+            if "dontknow" in required_tables:
+                if label_matches == 0:
+                    print("-- Found PR: " + pr_num + " with no matching label")
+                    dontknow_table.add_row([pr_num, pr.title.strip(), "-", "-", "-"])
+                    uncategorised += 1
 
     print("\nwriting tables")
-    wip_features_table_txt = wip_features_table.get_string()
-    fixes_table_txt = fixes_table.get_string()
-    features_table_txt = features_table.get_string(sort_key=operator.itemgetter(3, 4), sortby="Type")
-    dontknow_table_txt = dontknow_table.get_string()
-    old_pr_txt = old_pr_table.get_string(sortby=("Note"))
-    with open(prs_file ,"w") as file:
-        file.write('\nWork in Progress PRs\n\n')
-        file.write(wip_features_table_txt)
-        file.write('\n%s PRs listed\n\n' % str(wip_features))
-        file.write('New (merged) Features & Enhancements\n\n')
-        file.write(features_table_txt)
-        file.write('\n%s Features listed\n\nBug Fixes\n\n' % str(features))
-        file.write('Bug Fixes (merged)\n\n')        
-        file.write(fixes_table_txt)
-        file.write('\n%s Bugs listed\n\n' % str(fixes))
-        file.write('Uncategorised Merged PRs\n\n')
-        file.write(dontknow_table_txt)
-        file.write('\n%s uncategorised issues listed\n\n' % str(uncategorised))
-        file.write('Old PRs still open\n\n')
-        file.write(old_pr_txt)
-        file.write('\n%s Old PRs listed\n\n' % str(old_prs))
+
+    with open(str(output_file_name) ,"w") as file:
+
+        if "wip_features" in required_tables:
+            wip_features_table_txt = wip_features_table.get_string()
+            file.write('\nWork in Progress PRs\n\n')
+            file.write(wip_features_table_txt)
+            file.write('\n%s PRs listed\n\n' % str(wip_features))
+
+        if "merged_features" in required_tables:
+            features_table_txt = features_table.get_string(sortby="_index")
+            file.write('New (merged) Features & Enhancements\n\n')
+            file.write(features_table_txt)
+            file.write('\n%s Features listed\n\n' % str(features))
+
+        if "merged_fixes" in required_tables:
+            fixes_table.sortby = "_index"
+            fixes_table_txt = fixes_table.get_string(fields=["PR Number", "Title", "Type", "Severity"])
+            file.write('Bug Fixes (merged)\n\n')        
+            file.write(fixes_table_txt)
+            file.write('\n%s Bugs listed\n\n' % str(fixes))   
+
+        if "dontknow" in required_tables:
+            dontknow_table_txt = dontknow_table.get_string()
+            file.write('Uncategorised Merged PRs\n\n')
+            file.write(dontknow_table_txt)
+            file.write('\n%s uncategorised issues listed\n\n' % str(uncategorised))
+        
+        if "old_prs" in required_tables:
+            old_pr_txt = old_pr_table.get_string(sortby=("Note"))
+            file.write('Old PRs still open\n\n')
+            file.write(old_pr_txt)
+            file.write('\n%s Old PRs listed\n\n' % str(old_prs))
     file.close()
-    print(("\nTable has been output to %s\n\n" % prs_file))
+    print("\nTable has been output to %s\n\n" % str(output_file_name))
