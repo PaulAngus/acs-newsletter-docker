@@ -60,20 +60,17 @@ requires: python3.8 + docopt pygithub prettytable gitpython
 
 """
 
-from typing import DefaultDict
 import docopt
 import json
 from github import Github
 from prettytable import PrettyTable
 import os.path
-from os import path
-import re
 import sys
-import subprocess
-from datetime import datetime
-import subprocess
-import pygit2
-import shutil
+from  datetime import datetime, timedelta
+from lib import processors
+import operator
+
+
 
 def load_config():
     """
@@ -100,8 +97,6 @@ def load_config():
         sys.exit(__doc__)
     return args
 
-leading_4_spaces = re.compile('^    ')
-
 def merge(primary, secondary):
     """
     Merge two dictionaries.
@@ -111,68 +106,6 @@ def merge(primary, secondary):
     return dict((str(key), primary.get(key) or secondary.get(key))
                 for key in set(secondary) | set(primary))
 
-def get_revert_commits():
-    revertedcommits = []
-    #repourl='https://github.com/' + repo_name
-    #leading_4_spaces = re.compile('^    ')
-    ##previous_release_date = datetime.prev_release_commit_date.date()
-    previous_commit_date = datetime.strptime(prev_release_commit_date, '%Y-%m-%d').date()
-    commits = get_commits()
-    for commit in commits:
-        thiscommit = commit['title']
-        reverted = re.match('^Revert "', thiscommit)
-        if reverted:
-            commitdatestr = commit['date']
-            date_time_str = ' '.join(commitdatestr.split(" ")[:-1])
-            commitdate = datetime.strptime(date_time_str, '%c').date()
-            if commitdate > previous_commit_date:
-                revertedcommit = re.search('.*This reverts commit ([A-Za-z0-9]*).*', commit['message'])
-                revertedcommits.append(revertedcommit.group(1))
-    return revertedcommits
-
-
-def get_commits():
-    print("- Cloning repo, sorry, this could take a while")
-    dir_now = os.getcwd()
-    if path.isdir(cloned_repo_dir):
-        shutil.rmtree(cloned_repo_dir)
-    os.mkdir(cloned_repo_dir)
-    os.chdir(cloned_repo_dir)
-    repoClone = pygit2.clone_repository(repo.git_url, cloned_repo_dir, bare=True, checkout_branch=branch)
-    lines = subprocess.check_output(
-        ['git', 'log'], stderr=subprocess.STDOUT
-            ).decode("utf-8").split("\n")
-    commits = []
-    current_commit = {}
-    def save_current_commit():
-        title = current_commit['message'][0]
-        message = current_commit['message'][1:]
-        if message and message[0] == '':
-            del message[0]
-        current_commit['title'] = title
-        current_commit['message'] = '\n'.join(message)
-        commits.append(current_commit)
-    for line in lines:
-        if not line.startswith(' '):
-            if line.startswith('commit '):
-                if current_commit:
-                    save_current_commit()
-                    current_commit = {}
-                current_commit['hash'] = line.split('commit ')[1]
-            else:
-                try:
-                    key, value = line.split(':', 1)
-                    current_commit[key.lower()] = value.strip()
-                except ValueError:
-                    pass
-        else:
-            current_commit.setdefault(
-                'message', []
-            ).append(leading_4_spaces.sub('', line))
-    if current_commit:
-        save_current_commit()
-    os.chdir(dir_now)
-    return commits
 
 # run the code...
 if __name__ == '__main__':
@@ -184,11 +117,17 @@ if __name__ == '__main__':
     gh = Github(gh_token)
     repo_name = args['--repo']
     prev_release_ver = args['--prev_release_ver']
-    prev_release_commit = args['--prev_release_commit']
+    prev_release_commit_sha = args['--prev_release_commit_sha']
     new_release_ver = args['--new_release_ver']
     branch = args['--branch']
-    
+    tmp_dir = args['--tmp_dir']
     gh_base_url = args['--gh_base_url']
+
+    # default required_tables to all tables
+    if 'required_tables' in locals():
+        required_tables = str(args['--required_tables'])
+    else:
+        required_tables = ['wip_features', 'merged_fixes', 'merged_features', 'dontknow', 'old_prs'] 
 
     # default column width to 60
     if 'col_title_width' in locals():
@@ -207,20 +146,23 @@ if __name__ == '__main__':
             os.remove("demofile.txt")
 
     prs_file = "prs.rst"
-    cloned_repo_dir = '/tmp/repo'
-    wip_features_table = PrettyTable(["PR Number", "Title", "Priority", "blank"])
-    fixes_table = PrettyTable(["PR Number", "Title", "Priority", "blank"]) 
-    features_table = PrettyTable(["PR Number", "Title", "Priority", "blank"])
-    dontknow_table = PrettyTable(["PR Number", "Title", "Priority", "blank"])
+    tmp_repo_dir = tmp_dir + "/repo"
+    wip_features_table = PrettyTable(["PR Number", "Title", "Type", "Note"])
+    fixes_table = PrettyTable(["PR Number", "Title", "Type", "Note"]) 
+    features_table = PrettyTable(["PR Number", "Title", "Type", "Note"])
+    dontknow_table = PrettyTable(["PR Number", "Title", "Type", "Note"])
+    old_pr_table = PrettyTable(["PR Number", "Title", "Type", "Note"])
+    old_pr_table.align["Title"] = "l"
     wip_features_table.align["Title"] = "l"
     features_table.align["Title"] = "l"
     fixes_table.align["Title"] = "l"
     dontknow_table.align["Title"] = "l"
+    old_pr_table._max_width = {"Title":col_title_width}
     wip_features_table._max_width = {"Title":col_title_width}
     features_table._max_width = {"Title":col_title_width}
     fixes_table._max_width = {"Title":col_title_width}
     dontknow_table._max_width = {"Title":col_title_width}
-    
+
     repo = gh.get_repo(repo_name)
 
     ## TODO - get commit -> commit date from tag on master.
@@ -228,9 +170,9 @@ if __name__ == '__main__':
 
     #repo_tags = repo.get_tags()
 
-    if prev_release_commit:
+    if prev_release_commit_sha:
         print("Previous Release Commit SHA found in conf file, skipping pre release SHA search.\n")
-        prev_release_sha = prev_release_commit
+        prev_release_sha = prev_release_commit_sha
     else:
         print("Finding commit SHA for previous version " + prev_release_ver)
         for tag in repo_tags:
@@ -239,7 +181,6 @@ if __name__ == '__main__':
                 #print(prev_release_sha)
     commit = repo.get_commit(sha=prev_release_sha)
     prev_release_commit_date=str(commit.commit.author.date.date())    #break
-
     if not commit:
         print("No starting point found via version tag or commit SHA")
         exit
@@ -250,17 +191,32 @@ if __name__ == '__main__':
     search_string = f"repo:apache/cloudstack is:open is:pr label:wip"
     issues = gh.search_issues(search_string)
     wip_features = 0
+    old_prs = 0
 
-    print("- Processing Open Pull Request Issues")
+    print("- Processing OPEN Pull Requests (as issues)\n")
     for issue in issues:
         pr = issue.repository.get_pull(issue.number)
         label = []
         pr_num = str(pr.number)
         labels = pr.labels
-        if [l.name for l in labels if l.name=='wip' or l.name=='WIP']:
+        if [l.name for l in labels if l.name=='wip']:
             wip_features_table.add_row([pr_num, pr.title.strip(), "-", "-"]) 
             print("-- Found open PR : " + pr_num + " with WIP label")
             wip_features += 1
+
+        creation_date = pr.created_at
+        check_date_old = datetime.now() - timedelta(days=365)
+        check_date_very_old = datetime.now() - timedelta(days=2*365)
+        if creation_date < check_date_very_old:
+            print("**** More than 2 years old")
+            old_prs += 1
+            old_pr_table.add_row([pr_num, pr.title.strip(), "Very old PR", "Add label age:2years_plus"])
+
+        elif creation_date < check_date_old:
+            print("**** More than 1 year old")
+            old_prs += 1
+            old_pr_table.add_row([pr_num, pr.title.strip(), "Old PR", "Add label age:1year_plus"])
+            
 
     print("\nEnumerating closed and merged PRs in master\n")
 
@@ -272,11 +228,12 @@ if __name__ == '__main__':
     uncategorised = 0
 
     print("\nFinding reverted PRs")
-    reverted_shas = get_revert_commits()
+    reverted_shas = processors.get_reverted_commits(repo, branch,prev_release_commit_date, tmp_repo_dir)
     print("- Found these reverted commits:\n", reverted_shas)
 
-    print("\nProcessing Pull Request Issues\n")
+    print("\nProcessing MERGED Pull Request Issues\n")
     for issue in issues:
+        label_matches = 0
         pr = issue.repository.get_pull(issue.number)
         pr_commit_sha = pr.merge_commit_sha
         if pr_commit_sha in reverted_shas:
@@ -285,15 +242,22 @@ if __name__ == '__main__':
             label = []
             pr_num = str(pr.number)
             labels = pr.labels
-            if [l.name for l in labels if l.name=='type:new-feature' or l.name=='type:enhancement']:
-                features_table.add_row([pr_num, pr.title.strip(), "-", "-"]) 
+            if [l.name for l in labels if l.name=='type:new-feature' or l.name=='type:new_feature']:
+                features_table.add_row([pr_num, pr.title.strip(), "New Feature", "-"]) 
                 print("-- Found PR: " + pr_num + " with feature label")
                 features += 1
-            if [l.name for l in labels if l.name=='type:bug' or l.name=='BUG']:
-                fixes_table.add_row([pr_num, pr.title.strip(), "-", "-"]) 
+                label_matches += 1
+            if [l.name for l in labels if l.name=='type:enhancement']:
+                features_table.add_row([pr_num, pr.title.strip(), "Enhancement", "-"]) 
+                print("-- Found PR: " + pr_num + " with enhancement label")
+                features += 1
+                label_matches += 1
+            if [l.name for l in labels if l.name == 'type:bug' or l.name == 'type:cleanup']:
+                fixes_table.add_row([pr_num, pr.title.strip(), "Bug Fix", "-"]) 
                 print("-- Found PR: " + pr_num + " with fix label")
                 fixes += 1
-            else:
+                label_matches += 1
+            if label_matches == 0:
                 print("-- Found PR: " + pr_num + " with no matching label")
                 dontknow_table.add_row([pr_num, pr.title.strip(), "-", "-"])
                 uncategorised += 1
@@ -301,18 +265,24 @@ if __name__ == '__main__':
     print("\nwriting tables")
     wip_features_table_txt = wip_features_table.get_string()
     fixes_table_txt = fixes_table.get_string()
-    features_table_txt = features_table.get_string()
+    features_table_txt = features_table.get_string(sort_key=operator.itemgetter(3, 4), sortby="Type")
     dontknow_table_txt = dontknow_table.get_string()
+    old_pr_txt = old_pr_table.get_string(sortby=("Note"))
     with open(prs_file ,"w") as file:
-        file.write('\nWork in Progress Features & Enhancements\n\n')
+        file.write('\nWork in Progress PRs\n\n')
         file.write(wip_features_table_txt)
-        file.write('\n%s Features listed\n\n' % str(wip_features))
-        file.write('New Features & Enhancements\n\n')
+        file.write('\n%s PRs listed\n\n' % str(wip_features))
+        file.write('New (merged) Features & Enhancements\n\n')
         file.write(features_table_txt)
         file.write('\n%s Features listed\n\nBug Fixes\n\n' % str(features))
+        file.write('Bug Fixes (merged)\n\n')        
         file.write(fixes_table_txt)
         file.write('\n%s Bugs listed\n\n' % str(fixes))
+        file.write('Uncategorised Merged PRs\n\n')
         file.write(dontknow_table_txt)
         file.write('\n%s uncategorised issues listed\n\n' % str(uncategorised))
+        file.write('Old PRs still open\n\n')
+        file.write(old_pr_txt)
+        file.write('\n%s Old PRs listed\n\n' % str(old_prs))
     file.close()
     print(("\nTable has been output to %s\n\n" % prs_file))

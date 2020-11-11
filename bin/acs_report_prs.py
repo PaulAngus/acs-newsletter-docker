@@ -1,0 +1,363 @@
+#!/usr/bin/env python
+
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+"""
+Usage:
+  fixed_issues.py [--config=<config.json>]
+                  [-t <arg> | --gh_token=<arg>] 
+                  [-c <arg> | --prev_rel_commit=<arg>]
+                  [-b <arg> | --branch=<arg>]  
+                  [--repo=<arg>] 
+                  [--gh_base_url=<arg>] 
+                  [--col_title_width=<arg>] 
+
+  fixed_issues.py (-h | --help)
+Options:
+  -h --help                         Show this screen.
+  --config=<config.json>            Path to a JSON config file with an object of config options.
+  --gh_token=<arg>         Required: Your Github token from https://github.com/settings/tokens 
+                                      with `repo/public_repo` permissions.
+  --prev_rel_commit=<arg>  Required: The commit hash of the previous release.
+  --branches=<arg>         Required: Comma separated list of branches to report on (eg: 4.7,4.8,4.9).
+  --new_release_ver=<arg            not used in this iteration yet
+
+                                      The last one is assumed to be `master`, so `4.7,4.8,4.9` would
+                                      actually be represented by 4.7, 4.8 and master.
+  --repo=<arg>                      The name of the repo to use [default: apache/cloudstack].
+  --gh_base_url=<arg>               The base Github URL for pull requests 
+                                      [default: https://github.com/apache/cloudstack/pull/].
+  --col_title_width=<arg>          The width of the title column [default: 60].
+  --docker_created_config=<arg>     used to know whether to remove conf file if in container (for some safety)    
+
+Sample json file contents:
+
+{
+	"--gh_token":"******************",
+	"--prev_release_commit_sha":"6f96b3b2b391a9b7d085f76bcafa3989d9832b4e",
+	"--repo_name":"apache/cloudstack",
+	"--prev_release_ver":"4.14.0.0",
+	"--branch":"master",
+	"--prev_release_ver":"4.14.0.0",
+	"--new_release_ver":"4.15.0.0",
+	"--tmp_dir":"/tmp",
+	"--required_tables":"['wip_features', 'merged_fixes', 'merged_features', 'dontknow', 'old_prs']"
+}
+
+requires: python3.8 + docopt pygithub prettytable pygit2
+
+"""
+
+import docopt
+import json
+from github import Github
+from prettytable import PrettyTable
+import os.path
+import sys
+from  datetime import datetime, timedelta
+from lib import processors
+import operator
+import re
+
+
+def load_config():
+    """
+    Parse the command line arguments and load in the optional config file values
+    """
+    global gh_token
+
+    args = docopt.docopt(__doc__)
+    if args['--config'] and os.path.isfile(args['--config']):
+        json_args = {}
+        try:
+            with open(args['--config']) as json_file:    
+                json_args = json.load(json_file)
+        except Exception as e:
+            print(("Failed to load config file '%s'" % args['--config']))
+            print(("ERROR: %s" % str(e)))
+        if json_args:
+            args = merge(args, json_args)
+    #     since we are here, check that the required fields exist
+    valid_input = True
+    #if not args['--gh_token'] or (isinstance(args['--gh_token'], list)):
+    try:
+        gh_token = args['--gh_token']
+    except:
+        print("ERROR: gh_token is required")
+        valid_input = False
+
+    if not valid_input:
+        sys.exit(__doc__)
+    return args
+
+def merge(primary, secondary):
+    """
+    Merge two dictionaries.
+    Values that evaluate to true take priority over false values.
+    `primary` takes priority over `secondary`.
+    """
+    return dict((str(key), primary.get(key) or secondary.get(key))
+                for key in set(secondary) | set(primary))
+
+
+# run the code...
+if __name__ == '__main__':
+    print('\nInitialising...\n\n')
+
+    args = load_config()
+
+# Must have either Commit SHA of last version or Verion number to proceed
+    try:
+        prev_release_ver = args['--prev_release_ver']
+    except:
+        prev_release_ver = "NULL"
+    try:
+        prev_release_commit_sha = args['--prev_release_commit_sha']
+    except:
+        prev_release_commit_sha = "NULL"
+
+    if prev_release_commit_sha == "NULL" and prev_release_ver == "NULL":
+        print("Starting commit SHA or version is required to continue")
+        sys.exit()
+
+#  set defaults for optional parameters
+
+    try:
+        repo_name = args['--repo']
+    except:
+        repo_name = "apache/cloudstack"
+
+    try:
+        new_release_ver = args['--new_release_ver']
+    except:
+        new_release_ver = 1
+
+    try:
+        branch = args['--branch']
+    except:
+        branch = 'master'
+        
+    try:    
+        tmp_dir = args['--tmp_dir']
+    except:
+        tmp_dir = "/tmp"
+    
+    try:    
+        output_file_name = args['--output_file_name']
+    except:
+        output_file_name = "prs.rst"
+
+    try:
+        gh_base_url = args['--gh_base_url']
+    except:
+        gh_base_url = "https://github.com"
+
+    try:
+        required_tables = str(args['--required_tables'])
+    except:
+        required_tables = ['wip_features', 'merged_fixes', 'merged_features', 'dontknow', 'old_prs'] 
+
+    try:
+        col_title_width = int(args['--col_title_width'])
+    except:
+        col_title_width = 60
+    
+    # Delete config file if was dynaicall 
+    try:
+        docker_created_config = bool(args['--docker_created_config'])
+    except:
+        docker_created_config = bool(False)
+
+    if docker_created_config:
+        if args['--config'] and os.path.isfile(args['--config']):
+            os.remove("demofile.txt")
+
+    gh = Github(gh_token)
+    tmp_repo_dir = tmp_dir + "/repo"
+    wip_features_table = PrettyTable(["PR Number", "Title", "Type", "Note", "_index"])
+    fixes_table = PrettyTable(["PR Number", "Title", "Type", "Severity", "_index"]) 
+    features_table = PrettyTable(["PR Number", "Title", "Type", "Note", "_index"])
+    dontknow_table = PrettyTable(["PR Number", "Title", "Type", "Note", "_index"])
+    old_pr_table = PrettyTable(["PR Number", "Title", "Type", "Note", "_index"])
+    old_pr_table.align["Title"] = "l"
+    wip_features_table.align["Title"] = "l"
+    features_table.align["Title"] = "l"
+    fixes_table.align["Title"] = "l"
+    dontknow_table.align["Title"] = "l"
+    old_pr_table._max_width = {"Title":col_title_width}
+    wip_features_table._max_width = {"Title":col_title_width}
+    features_table._max_width = {"Title":col_title_width}
+    fixes_table._max_width = {"Title":col_title_width}
+    dontknow_table._max_width = {"Title":col_title_width}
+
+    repo = gh.get_repo(repo_name)
+
+    ## TODO - get commit -> commit date from tag on master.
+    ## Searching seems a waste
+
+    #repo_tags = repo.get_tags()
+
+
+    if prev_release_commit_sha != "NULL":
+        print("Previous Release Commit SHA found in conf file, skipping pre release SHA search.\n")
+        prev_release_sha = prev_release_commit_sha
+    else:
+        print("Finding commit SHA for previous version " + prev_release_ver)
+        for tag in repo_tags:
+            if tag.name == prev_release_ver:
+                prev_release_sha = tag.commit.sha
+
+    commit = repo.get_commit(sha=prev_release_sha)
+    prev_release_commit_date=str(commit.commit.author.date.date())
+    if not commit:
+        print("No starting point found via version tag or commit SHA")
+        exit
+
+    print("Enumerating Open WIP PRs in master\n")
+    print("- Retrieving Pull Request Issues from Github")
+    search_string = f"repo:apache/cloudstack is:open is:pr label:wip"
+    issues = gh.search_issues(search_string)
+    wip_features = 0
+    old_prs = 0
+
+    print("- Processing OPEN Pull Requests (as issues)\n")
+    for issue in issues:
+        pr = issue.repository.get_pull(issue.number)
+        label = []
+        pr_num = str(pr.number)
+        labels = pr.labels
+        if "wip_features" in required_tables:
+            if [l.name for l in labels if l.name=='wip']:
+                wip_features_table.add_row([pr_num, pr.title.strip(), "-", "-", 1]) 
+                print("-- Found open PR : " + pr_num + " with WIP label")
+                wip_features += 1
+        if "old_prs" in required_tables:
+            creation_date = pr.created_at
+            check_date_old = datetime.now() - timedelta(days=365)
+            check_date_very_old = datetime.now() - timedelta(days=2*365)
+            if creation_date < check_date_very_old:
+                print("**** More than 2 years old")
+                old_prs += 1
+                old_pr_table.add_row([pr_num, pr.title.strip(), "Very old PR", "Add label age:2years_plus", 2])
+
+            elif creation_date < check_date_old:
+                print("**** More than 1 year old")
+                old_prs += 1
+                old_pr_table.add_row([pr_num, pr.title.strip(), "Old PR", "Add label age:1year_plus", 1])
+
+
+    print("\nEnumerating closed and merged PRs in master\n")
+
+    print("- Retrieving Pull Request Issues from Github")
+    search_string = f"repo:apache/cloudstack is:closed is:pr is:merged merged:>={prev_release_commit_date}"
+    issues = gh.search_issues(search_string)
+    features = 0
+    fixes = 0
+    uncategorised = 0
+
+    print("\nFinding reverted PRs")
+    reverted_shas = processors.get_reverted_commits(repo, branch,prev_release_commit_date, tmp_repo_dir)
+    print("- Found these reverted commits:\n", reverted_shas)
+
+    print("\nProcessing MERGED Pull Request Issues\n")
+    for issue in issues:
+        label_matches = 0
+        pr = issue.repository.get_pull(issue.number)
+        pr_commit_sha = pr.merge_commit_sha
+        if pr_commit_sha in reverted_shas:
+            print("- Skipping PR %s, its been reverted", pr.merge_commit_sha)
+        else:
+            label = []
+            severity_label = []
+            pr_num = str(pr.number)
+            labels = pr.labels
+            severity_label_match = 0
+            severity_label_test = ''
+
+            for l in labels:
+                severity_label_test = l.name.find("Severity")
+                if int(severity_label_test) != -1:
+                    severity_label = l.name[9:]
+                    severity_label_match += 1 
+            if severity_label_match != 1:
+                severity_label = "unmatched"
+            
+            index_dict = {"BLOCKER":"01","Critical":"02", "Major":"03", "Minor":"04", "Trivial":"05", "none":"98", "unmatched":"99"}
+
+            severity_index = index_dict[severity_label]
+
+            if "merged_features" in required_tables:
+                if [l.name for l in labels if l.name=='type:new-feature' or l.name=='type:new_feature']:
+                    features_table.add_row([pr_num, pr.title.strip(), "New Feature", "-", 1 ]) 
+                    print("-- Found PR: " + pr_num + " with feature label")
+                    features += 1
+                    label_matches += 1
+            if "merged_features" in required_tables:
+                if [l.name for l in labels if l.name=='type:enhancement']:
+                    features_table.add_row([pr_num, pr.title.strip(), "Enhancement", "-", 2]) 
+                    print("-- Found PR: " + pr_num + " with enhancement label")
+                    features += 1
+                    label_matches += 1
+            if "merged_fixes" in required_tables:
+                if [l.name for l in labels if l.name == 'type:bug' or l.name == 'type:cleanup']:
+                    fixes_table.add_row([pr_num, pr.title.strip(), "Bug Fix", severity_label, severity_index]) 
+                    print("-- Found PR: " + pr_num + " with fix label, Severity of " + str(severity_label))
+                    fixes += 1
+                    label_matches += 1
+            if "dontknow" in required_tables:
+                if label_matches == 0:
+                    print("-- Found PR: " + pr_num + " with no matching label")
+                    dontknow_table.add_row([pr_num, pr.title.strip(), "-", "-", "-"])
+                    uncategorised += 1
+
+    print("\nwriting tables")
+
+    with open(str(output_file_name) ,"w") as file:
+
+        if "wip_features" in required_tables:
+            wip_features_table_txt = wip_features_table.get_string()
+            file.write('\nWork in Progress PRs\n\n')
+            file.write(wip_features_table_txt)
+            file.write('\n%s PRs listed\n\n' % str(wip_features))
+
+        if "merged_features" in required_tables:
+            features_table_txt = features_table.get_string(sortby="_index")
+            file.write('New (merged) Features & Enhancements\n\n')
+            file.write(features_table_txt)
+            file.write('\n%s Features listed\n\n' % str(features))
+
+        if "merged_fixes" in required_tables:
+            fixes_table.sortby = "_index"
+            fixes_table_txt = fixes_table.get_string(fields=["PR Number", "Title", "Type", "Severity"])
+            file.write('Bug Fixes (merged)\n\n')        
+            file.write(fixes_table_txt)
+            file.write('\n%s Bugs listed\n\n' % str(fixes))   
+
+        if "dontknow" in required_tables:
+            dontknow_table_txt = dontknow_table.get_string()
+            file.write('Uncategorised Merged PRs\n\n')
+            file.write(dontknow_table_txt)
+            file.write('\n%s uncategorised issues listed\n\n' % str(uncategorised))
+        
+        if "old_prs" in required_tables:
+            old_pr_txt = old_pr_table.get_string(sortby=("Note"))
+            file.write('Old PRs still open\n\n')
+            file.write(old_pr_txt)
+            file.write('\n%s Old PRs listed\n\n' % str(old_prs))
+    file.close()
+    print("\nTable has been output to %s\n\n" % str(output_file_name))

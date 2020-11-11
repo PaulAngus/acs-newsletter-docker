@@ -1,5 +1,7 @@
 conf.txt
 cloudstack.git/
-export.vars
 env.vars
 prs.rst
+export.vars
+bin/labels
+bin/lib/__pycache__/

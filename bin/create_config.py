@@ -41,6 +41,17 @@ with open(config_file ,"w") as file:
     if 'col_title_width' in os.environ:
         col_title_width = os.environ.get('col_title_width')
         file.write('"--col_title_width":"' +  col_title_width + '",\n')
+    if 'update_labels' in os.environ:
+        update_labels = os.environ.get('col_title_width')
+        file.write('"--update_labels":"' +  update_labels + '",\n')
+    else:
+        file.write('"--update_labels":"False"\n')
+    if 'tmp_dir' in os.environ:
+        tmp_dir = os.environ.get('tmp_dir')
+        file.write('"--tmp_dir":"' + tmp_dir + '",\n')
+    else:
+        file.write('"--tmp_dir":"/tmp"\n')
+    
     file.write('"--docker_created_config":"True"')
     file.write('\n}')   
     file.close()
