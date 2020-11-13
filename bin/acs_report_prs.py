@@ -189,11 +189,11 @@ if __name__ == '__main__':
 
     gh = Github(gh_token)
     tmp_repo_dir = tmp_dir + "/repo"
-    wip_features_table = PrettyTable(["PR Number", "Title", "Type", "Note", "_index"])
+    wip_features_table = PrettyTable(["PR Number", "Title", "Type", "Notes", "_index"])
     fixes_table = PrettyTable(["PR Number", "Title", "Type", "Severity", "_index"]) 
-    features_table = PrettyTable(["PR Number", "Title", "Type", "Note", "_index"])
-    dontknow_table = PrettyTable(["PR Number", "Title", "Type", "Note", "_index"])
-    old_pr_table = PrettyTable(["PR Number", "Title", "Type", "Note", "_index"])
+    features_table = PrettyTable(["PR Number", "Title", "Type", "Notes", "_index"])
+    dontknow_table = PrettyTable(["PR Number", "Title"])
+    old_pr_table = PrettyTable(["PR Number", "Title", "Type", "Notes", "_index"])
     old_pr_table.align["Title"] = "l"
     wip_features_table.align["Title"] = "l"
     features_table.align["Title"] = "l"
@@ -322,7 +322,7 @@ if __name__ == '__main__':
             if "dontknow" in required_tables:
                 if label_matches == 0:
                     print("-- Found PR: " + pr_num + " with no matching label")
-                    dontknow_table.add_row([pr_num, pr.title.strip(), "-", "-", "-"])
+                    dontknow_table.add_row([pr_num, pr.title.strip()])
                     uncategorised += 1
 
     print("\nwriting tables")
@@ -330,32 +330,46 @@ if __name__ == '__main__':
     with open(str(output_file_name) ,"w") as file:
 
         if "wip_features" in required_tables:
-            wip_features_table_txt = wip_features_table.get_string()
-            file.write('\nWork in Progress PRs\n\n')
-            file.write(wip_features_table_txt)
-            file.write('\n%s PRs listed\n\n' % str(wip_features))
+            if wip_features > 0:
+                wip_features_table.sortby = "_index"
+                wip_features_table_txt = wip_features_table.get_string(fields=["PR Number", "Title", "Type", "Notes"])
+                file.write('\nWork in Progress PRs\n\n')
+                file.write(wip_features_table_txt)
+                file.write('\n%s PRs listed\n\n' % str(wip_features))
 
         if "merged_features" in required_tables:
-            features_table_txt = features_table.get_string(sortby="_index")
-            file.write('New (merged) Features & Enhancements\n\n')
-            file.write(features_table_txt)
-            file.write('\n%s Features listed\n\n' % str(features))
+            if features > 0:
+                features_table.sortby = "_index"
+                features_table_txt = features_table.get_string(fields=["PR Number", "Title", "Type", "Notes"])
+                file.write('New (merged) Features & Enhancements\n\n')
+                file.write(features_table_txt)
+                file.write('\n%s Features listed\n\n' % str(features))
+            else:
+                file.write('No new features merged yet for next release.\n\n')
 
         if "merged_fixes" in required_tables:
-            fixes_table.sortby = "_index"
-            fixes_table_txt = fixes_table.get_string(fields=["PR Number", "Title", "Type", "Severity"])
-            file.write('Bug Fixes (merged)\n\n')        
-            file.write(fixes_table_txt)
-            file.write('\n%s Bugs listed\n\n' % str(fixes))   
+            if fixes > 0:
+                fixes_table.sortby = "_index"
+                fixes_table_txt = fixes_table.get_string(fields=["PR Number", "Title", "Type", "Severity"])
+                file.write('Bug Fixes (merged)\n\n')        
+                file.write(fixes_table_txt)
+                file.write('\n%s Bugs listed\n\n' % str(fixes))
+            else:
+                file.write('No new fixes merged yet for next release.\n\n')
 
         if "dontknow" in required_tables:
-            dontknow_table_txt = dontknow_table.get_string()
-            file.write('Uncategorised Merged PRs\n\n')
-            file.write(dontknow_table_txt)
-            file.write('\n%s uncategorised issues listed\n\n' % str(uncategorised))
-        
+            if uncategorised > 0:
+                dontknow_table.sortby = "PR Number"
+                dontknow_table_txt = dontknow_table.get_string(fields=["PR Number", "Title"])
+                file.write('Uncategorised Merged PRs\n\n')
+                file.write(dontknow_table_txt)
+                file.write('\n%s uncategorised issues listed\n\n' % str(uncategorised))
+            else:
+                file.write('No Uncategorised PRs to report.\n\n')
+
         if "old_prs" in required_tables:
-            old_pr_txt = old_pr_table.get_string(sortby=("Note"))
+            old_pr_table.sortby = "Notes"
+            old_pr_txt = old_pr_table.get_string(fields=["PR Number", "Title", "Type", "Notes"])
             file.write('Old PRs still open\n\n')
             file.write(old_pr_txt)
             file.write('\n%s Old PRs listed\n\n' % str(old_prs))
