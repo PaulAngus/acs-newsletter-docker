@@ -3,5 +3,5 @@
 RUN pip install pip==20.0.2 --no-cache-dir && pip install docopts pygithub prettytable pygit2 
 COPY bin /opt/
 
-ENTRYPOINT ["/opt/startup.py"]
-CMD ["/opt/startup.py"]
+#ENTRYPOINT ["/opt/bin/startup.py"]
+#CMD ["/opt/bin/startup.py"]
