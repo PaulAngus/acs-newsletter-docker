@@ -1,10 +1,6 @@
-#!/bin/python
+#!/bin/bash
 
-import urllib.request
-import os
-from bin import create_config
-
-working_dir = os.getenv('destination')
+working_dir=$destination
 
 # grab the newslater 'news'
 #url = 'https://raw.githubusercontent.com/shapeblue/cloudstack-www/master/data/newsletter.txt'
@@ -12,13 +8,15 @@ working_dir = os.getenv('destination')
 
 # grab env vars
 
-create_config()
+#working_dir="/opt"
+cd /opt
+python ./create_config.py
 
 # run the PR and Commit generation
-working_dir = os.environ.get('destination')
-config_file = f"{working_dir}/conf.txt"
-print(str(config_file))
-os.system("acs_report_prs.py --config=" + config_file)
+
+config_file="$working_dir/conf.txt"
+cat $config_file
+python ./acs_report_prs.py --config=$config_file
 
 # combine files
 #filenames = ["/tmp/newsletter.txt", "/tmp/prs.txt"]

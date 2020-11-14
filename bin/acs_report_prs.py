@@ -73,6 +73,8 @@ from  datetime import datetime, timedelta
 from lib import processors
 import operator
 import re
+import time
+
 
 
 def load_config():
@@ -177,7 +179,7 @@ if __name__ == '__main__':
     except:
         col_title_width = 60
     
-    # Delete config file if was dynaicall 
+    # Delete config file if was dynamically
     try:
         docker_created_config = bool(args['--docker_created_config'])
     except:
@@ -185,7 +187,7 @@ if __name__ == '__main__':
 
     if docker_created_config:
         if args['--config'] and os.path.isfile(args['--config']):
-            os.remove("demofile.txt")
+            os.remove(str(args['--config']))
 
     gh = Github(gh_token)
     tmp_repo_dir = tmp_dir + "/repo"
@@ -375,3 +377,7 @@ if __name__ == '__main__':
             file.write('\n%s Old PRs listed\n\n' % str(old_prs))
     file.close()
     print("\nTable has been output to %s\n\n" % str(output_file_name))
+
+    test = 1
+    while test == 1:
+        time.sleep(10)
