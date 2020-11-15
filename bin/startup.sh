@@ -8,14 +8,16 @@ working_dir=$destination
 
 # grab env vars
 
-#working_dir="/opt"
-cd /opt
+working_dir="/opt"
+cd $working_dir
+
+echo "creating conf file"
 python ./create_config.py
 
 # run the PR and Commit generation
 
+echo "Running analyser"
 config_file="$working_dir/conf.txt"
-cat $config_file
 python ./acs_report_prs.py --config=$config_file
 
 # combine files

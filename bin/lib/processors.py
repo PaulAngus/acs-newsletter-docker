@@ -27,20 +27,19 @@ import subprocess
 import shutil
 import pygit2
 
-def get_commits(repo, branch, tmp_repo_dir):
+def get_commits(repo, branch, tmp_dir):
 
     global prev_release_commit_date
-    global git_url
 
     leading_4_spaces = re.compile('^    ')
 
     print("- Cloning repo to avoid too many Github API calls, sorry, this could take a while")
     dir_now = os.getcwd()
-    if os.path.isdir(tmp_repo_dir):
-        shutil.rmtree(tmp_repo_dir)
-    os.mkdir(tmp_repo_dir)
-    os.chdir(tmp_repo_dir)
-    repoClone = pygit2.clone_repository(repo.git_url, tmp_repo_dir, bare=True, checkout_branch=branch)
+    #if os.path.isdir(tmp_repo_dir):
+    #    shutil.rmtree(tmp_repo_dir)
+    #os.mkdir(tmp_repo_dir)
+    os.chdir(tmp_dir)
+    repoClone = pygit2.clone_repository(repo.git_url, tmp_dir, bare=True, checkout_branch=branch)
     lines = subprocess.check_output(
         ['git', 'log'], stderr=subprocess.STDOUT
             ).decode("utf-8").split("\n")

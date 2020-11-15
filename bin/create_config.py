@@ -19,6 +19,10 @@
 
 import os
 
+global tmp_dir
+global output_file_name
+global destination
+
 working_dir = os.environ.get('destination')
 config_file = f"{working_dir}/conf.txt"
 
@@ -52,7 +56,7 @@ with open(config_file ,"w") as file:
         tmp_dir = os.environ.get('tmp_dir')
         file.write('    "--tmp_dir":"' + str(tmp_dir) + '",\n')
     else:
-        file.write('    "--tmp_dir":"/tmp"\n')
+        file.write('    "--tmp_dir":"/tmp,"\n')
 
     if 'destination' in os.environ:
         destination = os.environ.get('destination')
@@ -60,6 +64,12 @@ with open(config_file ,"w") as file:
     else:
         file.write('    "--destination":"/opt",\n')
 
+    if 'output_file_name' in os.environ:
+        output_file_name = os.environ.get('output_file_name')
+        file.write('    "--output_file_name":"' + str(output_file_name) + '",\n')
+    else:
+        file.write('    "--output_file_name":"prs.rst",\n')
+        
     if 'update_labels' in os.environ:
         update_labels = os.environ.get('update_labels')
         file.write('    "--update_labels":"' + str(update_labels) + '",\n')
@@ -68,6 +78,5 @@ with open(config_file ,"w") as file:
     file.write('\n}\n   ')   
     file.close()
 
-# Clear vars from environment 'memory'
-
-os.environ.clear()
+    # Clear vars from environment 'memory'
+    os.environ.clear()

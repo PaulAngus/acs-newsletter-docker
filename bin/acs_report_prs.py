@@ -74,6 +74,8 @@ from lib import processors
 import operator
 import re
 import time
+import shutil
+
 
 
 
@@ -153,11 +155,6 @@ if __name__ == '__main__':
         branch = args['--branch']
     except:
         branch = 'master'
-        
-    try:    
-        tmp_dir = args['--tmp_dir']
-    except:
-        tmp_dir = "/tmp"
     
     try:    
         output_file_name = args['--output_file_name']
@@ -180,17 +177,37 @@ if __name__ == '__main__':
         col_title_width = 60
     
     # Delete config file if was dynamically
+    
     try:
         docker_created_config = bool(args['--docker_created_config'])
     except:
         docker_created_config = bool(False)
 
+    try:
+        destination = str(args['--destination'])
+    except:
+        destination = "/opt"
+
+    tmp_dir="/tmp"
     if docker_created_config:
-        if args['--config'] and os.path.isfile(args['--config']):
+        tmp_tmp_dir =  str(tmp_dir + "/docker_output")
+        try:
+            os.rmdir(tmp_tmp_dir)
+        except OSError:
+            print ("")
+        
+        try:
+            os.mkdir(tmp_tmp_dir)
+        except OSError:
+            print ("")
+        else:
+            print ("Successfully created empty output directory %s " % tmp_tmp_dir)
             os.remove(str(args['--config']))
 
+    tmp_repo_dir = str(tmp_dir) + "/repo"   
+    
     gh = Github(gh_token)
-    tmp_repo_dir = tmp_dir + "/repo"
+
     wip_features_table = PrettyTable(["PR Number", "Title", "Type", "Notes", "_index"])
     fixes_table = PrettyTable(["PR Number", "Title", "Type", "Severity", "_index"]) 
     features_table = PrettyTable(["PR Number", "Title", "Type", "Notes", "_index"])
@@ -329,7 +346,12 @@ if __name__ == '__main__':
 
     print("\nwriting tables")
 
-    with open(str(output_file_name) ,"w") as file:
+    if docker_created_config:
+        output_file = str(tmp_tmp_dir + "/" + output_file_name)
+    else:
+        output_file = str(destination + "/" + output_file_name)
+
+    with open(output_file ,"w") as file:
 
         if "wip_features" in required_tables:
             if wip_features > 0:
@@ -376,8 +398,6 @@ if __name__ == '__main__':
             file.write(old_pr_txt)
             file.write('\n%s Old PRs listed\n\n' % str(old_prs))
     file.close()
-    print("\nTable has been output to %s\n\n" % str(output_file_name))
+    print("\nTable has been output to %s\n\n" % output_file)
 
-    test = 1
-    while test == 1:
-        time.sleep(10)
+ 
